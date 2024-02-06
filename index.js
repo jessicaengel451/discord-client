@@ -326,75 +326,6 @@ setInterval(() => {
     fetchData()
 }, config.interval);
 
-
-
-UpdateOverlays().then(() => {
-    if(config.overlays.length != undefined) {
-        CheckOverlaysDownloaded();
-    }
-    UpdateAllOverlays()
-});
-
-function UpdateAllOverlays(updateWithoutCheck = false) {
-    if(!config.autoupdateoverlays && !updateWithoutCheck) return
-    console.log("Updating all overlays")
-    config.overlays.forEach(o => {
-        if(o.localVersionCode < o.versionCode) {
-            var xhr = new XMLHttpRequest();
-            xhr.open("POST", "http://localhost:53510/api/download", true);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.send(JSON.stringify({
-                "Name": o.Name
-            }));
-        }
-    })
-}
-
-function CheckOverlaysDownloaded() {
-    for(let i = 0; i < config.overlays.length; i++) {
-        var dir = path.join(applicationDir, "overlays", config.overlays[i].Name)
-        if(fs.existsSync(dir)) {
-            config.overlays[i].downloaded = true;
-        } else {
-            config.overlays[i].downloaded = false;
-        }
-    }
-    saveConfig();
-}
-
-function UpdateOverlays() {
-    return new Promise((resolve, reject) => {
-        fetch("https://computerelite.github.io/tools/Streamer_Tools_Quest_Overlay/overlays.json").then((res) => {
-            res.json().then((json) => {
-                //console.log(JSON.stringify(config, null, 4))
-                var configBackup = JSON.parse(JSON.stringify(config));
-                config.overlays = json.overlays;
-                configBackup.overlays.forEach(overlay => {
-                    var exists = false;
-                    let i = 0;
-                    config.overlays.forEach(item => {
-                        //name is kinda an id
-                        if(item.Name == overlay.Name)
-                        {
-                            exists = true;
-                            //console.log(JSON.stringify(overlay))
-                            config.overlays[i].localVersionCode = overlay.localVersionCode
-                            //console.log(JSON.stringify(config.overlays[i]))
-                            //console.log(config.overlays[i].localVersionCode)
-                            return;
-                        }
-                        i++;
-                    })
-                    if(!exists) config.overlays.push(overlay)
-                })
-                saveConfig();
-                resolve();
-            })
-        })
-    })
-    
-}
-
 function saveConfig() {
     writeToFile(path.join(applicationDir, "config.json"), JSON.stringify(config))
 }
@@ -816,10 +747,6 @@ api.patch(`/api/patchconfig`, async function(req, res) {
     if(req.body.interval != undefined) {
         config.interval = req.body.interval
         if(log) console.log("config.interval set to: " + config.interval)
-    }
-    if(req.body.autoupdateoverlays != undefined) {
-        config.autoupdateoverlays = req.body.autoupdateoverlays
-        if(log) console.log("config.autoupdateoverlays set to: " + config.autoupdateoverlays)
     }
     if(req.body.dcrpe != undefined) {
         config.dcrpe = req.body.dcrpe
