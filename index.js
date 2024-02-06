@@ -76,9 +76,6 @@ if(fs.existsSync(path.join(applicationDir, "config.json"))) {
             "alwaysmpcode": false,
             "alwaysupdate": false
         },
-        "srm": {
-            "requestdelay": 10000
-        }
     }
 }
 
@@ -89,8 +86,6 @@ if(!fs.existsSync(path.join(applicationDir, "covers"))) {
 }
 
 let raw = {}
-
-var ipInQueue = ""
 
 function SetupMulticast(localIP) {
     var PORT = MulticastPort;
@@ -115,28 +110,6 @@ function SetupMulticast(localIP) {
     client.bind(PORT, HOST);
 }
 
-function NotifyClient() {
-    if(config.ip != ipInQueue) {
-        var answer = dialog.showMessageBoxSync(mainWindow, {
-            "message": "Incoming IP. Do you want to set this as your Quests IP? IP: " + ipInQueue,
-            "buttons": ["Yes", "No"],
-            "title": "Streamer tools client",
-            "type": "question"
-        })
-        if(answer == 0) {
-            config.ip = ipInQueue;
-            saveConfig();
-            dialog.showMessageBoxSync(mainWindow, {
-                "message": "IP set to " + config.ip,
-                "buttons": ["OK"],
-                "title": "Streamer tools client"
-            })
-            mainWindow.reload();
-        } else {
-            console.log("IP not changed")
-        }
-    }
-}
 
 function GetLocalIPs() {
     const nets = networkInterfaces();
@@ -186,20 +159,6 @@ var fetchedKey = false
 var key = false
 var coverFetchableLocalhost = false
 
- async function GetBeatSaverKey(got404) {
-    if(!got404) {
-        fetchedKey = false
-        fetch("https://api.beatsaver.com/maps/hash/" + raw.id.replace("custom_level_", ""), {headers: { 'User-Agent': 'Streamer-tools-client/1.0 (+https://github.com/ComputerElite/streamer-tools-client/)' }}).then((result) => {
-            result.json().then((json) => {
-                try {
-                    key = json.id
-                    fetchedKey = true
-                } catch {}
-            }).catch((err) => {})
-        }).catch((err) => {})
-    }
-}
-
 function fetchData() {
     if(connected || fetching) return;
     fetching = true;
@@ -237,16 +196,6 @@ function fetchData() {
                             
                             sent = true;
                             
-                            if(lastid != raw.id || got404) {
-                                coverFetchableLocalhost = false
-                                for(let i = 0; i < srm.length; i++) {
-                                    if(srm[i].hash.toLowerCase() == raw.id.replace("custom_song_", "").toLowerCase()) {
-                                        srm.splice(i, 1)
-                                    }
-                                }
-                                GetBeatSaverKey(got404);
-                                lastid = raw.id
-                            }
                             if(raw.coverFetchable && !coverFetchableLocalhost) {
                                 console.log(raw.coverFetchable)
                                 fetch("http://" + config.ip + ":" + HttpPort + "/cover/base64").then((res2) => {
@@ -306,15 +255,6 @@ function fetchData() {
 setInterval(() => {
     fetchData()
 }, config.interval);
-
-function saveConfig() {
-    writeToFile(path.join(applicationDir, "config.json"), JSON.stringify(config))
-}
-
-function writeToFile(file, contents) {
-    fs.writeFileSync(file, contents)
-}
-
 
 //////////////////////////////////////Discord rich presence///////////////////////////////////////
 if(config.dcrpe != undefined && config.dcrpe) {
@@ -471,179 +411,11 @@ if(config.dcrpe != undefined && config.dcrpe) {
     }
 }
 
-
-/////////////////// Twitch bot////////////////////////
-function BSaverRequest(key) {
-    return bsapi.getMapByID(key)
-    
-}
-
-var srm = []
-
-if(config.twitch != undefined && config.twitch.token != undefined && config.twitch.channelname != undefined && config.twitch.enabled) {
-    const tmi = require('tmi.js');
-
-    const client = new tmi.Client({
-    options: { debug: true },
-    connection: {
-        secure: true,
-        reconnect: true
-    },
-    identity: {
-        username: 'streamer-tools-client',
-        password: config.twitch.token
-    },
-    channels: [config.twitch.channelname]
-    });
-
-    client.connect();
-    
-
-    var lastRequest = new Date();
-
-    client.on('message', (channel, tags, message, self) => {
-        if(self) return;
-
-        console.log("recived message via twitch: [" + channel + "] <" + tags.username + "> " + message)
-        if(message.toLowerCase().startsWith("!bsr")) {
-            console.log("bsr")
-            var msg = message.split(" ");
-            if(msg.length >= 2) {
-                var key = msg[1].toLowerCase()
-                for(let i = 0; i < srm.length; i++) {
-                    if(srm[i].key == key) {
-                        srm[i].requested++;
-                        client.say(channel, `@${tags.username} requested ${srm[i].key}. It has now been requested ${srm[i].requested}`)
-                        return
-                    }
-                }
-
-                if((new Date().getTime() - lastRequest.getTime()) < config.srm.requestdelay) {
-                    client.say(channel, `@${tags.username} ${config.twitch.channelname} only allows ${(60000 / config.srm.requestdelay)} requests per minute`)
-                    return
-                }
-                lastRequest = new Date()
-                BSaverRequest(key).then((res) => {
-                        console.log(`@${tags.username} requested ${res.name} (${key})`)
-                        
-                        if(config.srm != undefined && config.srm.maxsonglength != undefined && res.metadata.duration > config.srm.maxsonglength) {
-                            console.log(`Song is too long`)
-                            client.say(channel, `@${tags.username} the song you requested is ${res.metadata.duration - config.srm.maxsonglength} seconds too long. Only a maximum length of ${config.srm.maxsonglength} seconds is allowed`)
-                            return;
-                        }
-                        client.say(channel, `@${tags.username} requested ${res.name} (${key})`)
-                        if(!fs.existsSync(path.join(applicationDir, "covers", res.key + ".png"))) {
-                            console.log("downloading cover of song " + res.key)
-                            downloadFile(res.versions[0].coverURL, path.join(applicationDir, "covers", res.key + ".png"))
-                        }
-                        var request = {
-                            "name": res.name,
-                            "key": res.id,
-                            "coverURL": `http://localhost:${ApiPort}/covers/${res.key}.png`,
-                            "requested": 1,
-                            "length": res.metadata.duration,
-                            "hash": res.hash
-                        }
-                        srm.unshift(request)
-                })
-                
-            }
-        }
-    });
-}
-
-
 /////////////////////////////////////////////////////////////////////
-
-app.on('ready', () => {
-    mainWindow = new BrowserWindow({
-        icon: path.join(__dirname, 'assets', 'STC.ico')
-    });
-    //mainWindow.removeMenu()
-    mainWindow.loadURL(url.format({
-        pathname: path.join(__dirname, "html", "index.html"),
-        protocol: 'file',
-        slashes: true
-    }))
-
-})
 
 api.use(bodyParser.urlencoded({ extended: true }));
 api.use(bodyParser.json());
 api.use(bodyParser.raw());
-
-function SyncConfigFromQuest(json) {
-    var xhr = new XMLHttpRequest();
-    xhr.open("PATCH", "http://localhost:53510/api/patchconfig", true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.send(JSON.stringify({
-        "oconfig": {
-            "decimals": json.decimals,
-            "dontenergy": json.dontenergy,
-            "dontmpcode": json.dontmpcode,
-            "alwaysmpcode": json.alwaysmpcode,
-            "alwaysupdate": json.alwaysupdate
-        },
-        "log": false,
-        "updateQuestConfig": false
-    }));
-}
-
-function SyncConfigToQuest() {
-    var xhr = new XMLHttpRequest();
-    xhr.open("PATCH", "http://" + config.ip + ":" + HttpPort + "/config", true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.send(JSON.stringify({
-        "decimals": config.oconfig.decimals,
-        "dontenergy": config.oconfig.dontenergy,
-        "dontmpcode": config.oconfig.dontmpcode,
-        "alwaysmpcode": config.oconfig.alwaysmpcode,
-        "alwaysupdate": config.oconfig.alwaysupdate,
-        "lastChanged": config.oconfig.lastChanged
-    }));
-}
-
-// Really really chonky
-api.patch(`/api/patchconfig`, async function(req, res) {
-    res.end()
-    if(config.twitch == undefined) {
-        config.twitch = {}
-    }
-    if(config.oconfig == undefined) {
-        config.oconfig = {}
-    }
-    var log = req.body.log;
-    if(req.body.ip != undefined) {
-        var ipReg = /^((2(5[0-5]|[0-4][0-9])|1?[0-9]?[0-9])\.){3}(2(5[0-5]|[0-4][0-9])|1?[0-9]?[0-9])$/g
-    
-        if(!ipReg.test(req.body.ip)) {
-            if(log) console.log("warning: config.ip (" + req.body.ip + ") is no ipv4 ip.")
-        }
-        config.ip = req.body.ip
-        if(log) console.log("config.ip set to: " + config.ip)
-    }
-    if(req.body.interval != undefined) {
-        config.interval = req.body.interval
-        if(log) console.log("config.interval set to: " + config.interval)
-    }
-    if(req.body.dcrpe != undefined) {
-        config.dcrpe = req.body.dcrpe
-        if(log) console.log("config.dcrpe set to: " + config.dcrpe)
-    }
-    if(req.body.srm != undefined) {
-        if(config.srm == undefined) config.srm = {}
-        if(req.body.srm.requestdelay != undefined) {
-            config.srm.requestdelay = req.body.srm.requestdelay
-            if(log) console.log("config.srm.requestdelay set to: " + config.srm.requestdelay)
-        }
-        if(req.body.srm.maxsonglength != undefined) {
-            config.srm.maxsonglength = req.body.srm.maxsonglength
-            if(log) console.log("config.srm.maxsonglength set to: " + config.srm.maxsonglength)
-        }
-    }
-
-    saveConfig()
-}).catch
 
 api.post(`/api/copytoclipboard`, async function(req, res) {
     res.end()
@@ -651,17 +423,6 @@ api.post(`/api/copytoclipboard`, async function(req, res) {
     console.log("wrote " + req.body.text + " to clipboard")
 })
 
-api.post(`/api/removerequest`, async function(req, res) {
-    res.end()
-    for(let i = 0; i < srm.length; i++) {
-        if(req.body.key == srm[i].key) {
-            srm.splice(i, 1)
-            console.log("removed song request at index " + i + " (" + req.body.key + ")")
-            return;
-        }
-    }
-    console.log("removed none")
-})
 
 api.get(`/api/getconfig`, async function(req, res) {
     try {
