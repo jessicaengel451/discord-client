@@ -40,20 +40,6 @@ IP:
     Multicast: 232.0.53.5
 */
 
-autoUpdater.on('update-downloaded', (event, releaseNotes, releaseName) => {
-    const dialogOpts = {
-            type: 'info',
-            buttons: ['Restart', 'Later'],
-            title: 'Application Update',
-            message: process.platform === 'win32' ? releaseNotes : releaseName,
-            detail: 'A new version has been downloaded. Restart the application to apply the updates.'
-        }
-
-        dialog.showMessageBox(dialogOpts).then((returnValue) => {
-        if (returnValue.response === 0) autoUpdater.quitAndInstall()
-    })
-})
-
 let mainWindow;
 
 let config;
@@ -329,53 +315,6 @@ function writeToFile(file, contents) {
     fs.writeFileSync(file, contents)
 }
 
-
-function downloadFile(url, dest) {
-    return new Promise((resolve, reject) => {
-        const file = fs.createWriteStream(dest, { flags: "wx" });
-        var parsed = new URL(url)
-
-        const options = {
-            hostname: parsed.hostname,
-            port: parsed.port,
-            path: parsed.pathname,
-            method: 'GET',
-            headers: {
-                'User-Agent': `streamer-tools-client/${version} (+https://github.com/ComputerElite/streamer-tools-client/)`
-            }
-          }
-        const request = https.get(options, response => {
-            if (response.statusCode === 200) {
-                response.pipe(file);
-            } else {
-                file.close();
-                fs.unlink(dest, () => {}); // Delete temp file
-                reject(`Server responded with ${response.statusCode}: ${response.statusMessage}`);
-            }
-        });
-
-        request.on("error", err => {
-            file.close();
-            fs.unlink(dest, () => {}); // Delete temp file
-            reject(err.message);
-        });
-
-        file.on("finish", () => {
-            resolve();
-        });
-
-        file.on("error", err => {
-            file.close();
-
-            if (err.code === "EEXIST") {
-                reject("File already exists");
-            } else {
-                fs.unlink(dest, () => {}); // Delete temp file
-                reject(err.message);
-            }
-        });
-    });
-}
 
 //////////////////////////////////////Discord rich presence///////////////////////////////////////
 if(config.dcrpe != undefined && config.dcrpe) {
@@ -730,10 +669,6 @@ api.get(`/api/getconfig`, async function(req, res) {
     } catch {}
 })
 
-function constuctParameters() {
-    return "?ip=" + config.ip + "&updaterate=" + config.interval + "&decimals=" + config.oconfig.decimals + (config.oconfig.dontenergy ? "&dontshowenergy" : "") + (config.oconfig.dontmpcode ? "&dontshowmpcode" : "") + (config.oconfig.alwaysmpcode ? "&alwaysshowmpcode" : "") + (config.oconfig.customtext != "" ? "&customtext=" + config.oconfig.customtext : "") + (config.oconfig.alwaysupdate ? "&alwaysupdate" : "") + "&nosetip"
-}
-
 api.get(`/windows/home`, async function(req, res) {
     mainWindow.loadURL(url.format({
         pathname: path.join(__dirname, "html", "index.html"),
@@ -745,24 +680,6 @@ api.get(`/windows/home`, async function(req, res) {
 api.get(`/windows/stream`, async function(req, res) {
     mainWindow.loadURL(url.format({
         pathname: path.join(__dirname, "html", "stream.html"),
-        protocol: 'file',
-        slashes: true
-    }))
-    res.end()
-})
-
-api.get(`/windows/downloads`, async function(req, res) {
-    mainWindow.loadURL(url.format({
-        pathname: path.join(__dirname, "html", "downloads.html"),
-        protocol: 'file',
-        slashes: true
-    }))
-    res.end()
-})
-
-api.get(`/windows/srm`, async function(req, res) {
-    mainWindow.loadURL(url.format({
-        pathname: path.join(__dirname, "html", "srm.html"),
         protocol: 'file',
         slashes: true
     }))

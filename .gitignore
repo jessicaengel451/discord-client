@@ -1,6 +1,5 @@
 /node_modules
 /.vs
-/config.json
 /build
 *.tgz
 /covers
