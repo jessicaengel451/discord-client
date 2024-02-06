@@ -1,21 +1,13 @@
-const electron = require('electron');
 const url = require('url');
 const path = require('path');
 const fs = require('fs')
 const express = require('express')
 const api = express();
 const bodyParser = require("body-parser");
-const https = require('https')
 const fetch = require('node-fetch')
 var shell = require('shelljs');
-const { clipboard } = electron
 const  { networkInterfaces }  = require('os')
-const { dialog, autoUpdater } = electron
-const { app } = electron
-const  {BrowserWindow } = electron
 const net = require('net');
-var XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
-const BeatSaverAPI = require('beatsaver-api');
 
 const applicationDir = "."
 const MulticastPort = 53500
@@ -24,11 +16,6 @@ const SocketPort = 53501
 const HttpPort = 53502
 const ApiPort = 53510
 const version = "1.1.3"
-
-const bsapi = new BeatSaverAPI({
-    AppName: "Streamer-tools-client",
-    Version: version
-});
 /*
 Ports:
     Multicast: 53500
@@ -433,14 +420,6 @@ api.get(`/api/getconfig`, async function(req, res) {
 api.get(`/windows/home`, async function(req, res) {
     mainWindow.loadURL(url.format({
         pathname: path.join(__dirname, "html", "index.html"),
-        protocol: 'file',
-        slashes: true
-    }))
-    res.end()
-})
-api.get(`/windows/stream`, async function(req, res) {
-    mainWindow.loadURL(url.format({
-        pathname: path.join(__dirname, "html", "stream.html"),
         protocol: 'file',
         slashes: true
     }))
