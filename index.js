@@ -253,9 +253,7 @@ function fetchData() {
                             buffer = buffer.subarray(4 + messageLength);
                             
                             sent = true;
-                            if(!raw.configFetched) {
-                                UpdateOverlayConfig(true);
-                            }
+                            
                             if(lastid != raw.id || got404) {
                                 coverFetchableLocalhost = false
                                 for(let i = 0; i < srm.length; i++) {
@@ -621,36 +619,6 @@ if(config.twitch != undefined && config.twitch.token != undefined && config.twit
 
 /////////////////////////////////////////////////////////////////////
 
-function downloadOverlay(overlay) {
-    console.log("Downloading " + overlay.Name)
-    var dir = path.join(applicationDir, "overlays", overlay.Name)
-    if(fs.existsSync(dir)) {
-        fs.rmdirSync(dir, {recursive: true}, err => {
-            console.log("error while deleting existing dir: " + err)
-        })
-    }
-    shell.mkdir(dir)
-    overlay.downloads.forEach(async function(download)  {
-        const fdir = path.join(dir, download.Path.substring(0, download.Path.lastIndexOf('/')))
-        if(!fs.existsSync(fdir)) {
-            shell.mkdir('-p', fdir);
-        }
-        downloadFile(download.URL, path.join(dir, download.Path))
-    });
-    
-    for(let i = 0; i < config.overlays.length; i++) {
-        //console.log(config.overlays[i].Name + "==" + overlay.Name)
-        if(config.overlays[i].Name == overlay.Name) {
-            //console.log("true")
-            config.overlays[i].localVersionCode = overlay.versionCode
-            saveConfig()
-            break;
-        }
-    }
-    console.log("Download of " + overlay.Name + " has finished")
-    CheckOverlaysDownloaded();
-}
-
 app.on('ready', () => {
     mainWindow = new BrowserWindow({
         icon: path.join(__dirname, 'assets', 'STC.ico')
@@ -668,19 +636,7 @@ api.use(bodyParser.urlencoded({ extended: true }));
 api.use(bodyParser.json());
 api.use(bodyParser.raw());
 
-api.post(`/api/download`, async function(req, res) {
-    res.end()
-    config.overlays.forEach(overlay => {
-        if(overlay.Name == req.body.Name) {
-            downloadOverlay(overlay);
-        }
-    })
-    mainWindow.loadURL(url.format({
-        pathname: path.join(__dirname, "html", "downloads.html"),
-        protocol: 'file',
-        slashes: true
-    }))
-})
+
 
 function UpdateOverlayConfig(dontUpdate = false) {
     fetch("http://" + config.ip + ":" + HttpPort + "/config").then((res) => {
