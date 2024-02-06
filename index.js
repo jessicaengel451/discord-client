@@ -76,8 +76,6 @@ if(fs.existsSync(path.join(applicationDir, "config.json"))) {
     config = {
         "ip": "ip",
         "interval": "100",
-        "overlays": [
-        ],
         "dcrpe": false,
         "twitch": {
             "enabled": false,
@@ -94,8 +92,7 @@ if(fs.existsSync(path.join(applicationDir, "config.json"))) {
         },
         "srm": {
             "requestdelay": 10000
-        },
-        "autoupdateoverlays": true
+        }
     }
 }
 
@@ -636,20 +633,6 @@ api.use(bodyParser.urlencoded({ extended: true }));
 api.use(bodyParser.json());
 api.use(bodyParser.raw());
 
-
-
-function UpdateOverlayConfig(dontUpdate = false) {
-    fetch("http://" + config.ip + ":" + HttpPort + "/config").then((res) => {
-        res.json().then((json) => {
-            if(config.oconfig.lastChanged > json.lastChanged) {
-                if(!dontUpdate) SyncConfigToQuest();
-            } else {
-                SyncConfigFromQuest(json);
-            }
-        })
-    }).catch((err) => {})
-}
-
 function SyncConfigFromQuest(json) {
     var xhr = new XMLHttpRequest();
     xhr.open("PATCH", "http://localhost:53510/api/patchconfig", true);
@@ -720,56 +703,6 @@ api.patch(`/api/patchconfig`, async function(req, res) {
         }
     }
 
-    // Twitch config
-    if(req.body.twitch != undefined) {
-        if(config.twitch == undefined) config.twitch = {}
-        if(req.body.twitch.enabled != undefined) {
-            config.twitch.enabled = req.body.twitch.enabled
-            console.log("config.twitch.enabled set to: " + config.twitch.enabled)
-        }
-        if(req.body.twitch.token != undefined) {
-            config.twitch.token = req.body.twitch.token
-            console.log("config.twitch.token set to: " + config.twitch.token)
-        }
-        if(req.body.twitch.channelname != undefined) {
-            config.twitch.channelname = req.body.twitch.channelname
-            console.log("config.twitch.channelname set to: " + config.twitch.channelname)
-        }
-    }
-
-    // overlay config
-    if(req.body.oconfig) {
-        if(config.oconfig == undefined) config.oconfig = {}
-        if(config.oconfig.customtext != req.body.oconfig.customtext || config.oconfig.decimals != req.body.oconfig.decimals || config.oconfig.dontenergy != req.body.oconfig.dontenergy || config.oconfig.dontmpcode != req.body.oconfig.dontmpcode || config.oconfig.alwaysmpcode != req.body.oconfig.alwaysmpcode || config.oconfig.alwaysupdate != req.body.oconfig.alwaysupdate) {
-            config.oconfig.lastChanged = Math.round((new Date()).getTime() / 1000)
-            if(req.body.oconfig.customtext != undefined) {
-                config.oconfig.customtext = req.body.oconfig.customtext
-                if(log) console.log("config.oconfig.customtext set to: " + config.oconfig.customtext)
-            }
-            if(req.body.oconfig.decimals != undefined) {
-                config.oconfig.decimals = parseInt(req.body.oconfig.decimals)
-                if(log) console.log("config.oconfig.decimals set to: " + config.oconfig.decimals)
-            }
-            if(req.body.oconfig.dontenergy != undefined) {
-                config.oconfig.dontenergy = req.body.oconfig.dontenergy
-                if(log) console.log("config.oconfig.dontenergy set to: " + config.oconfig.dontenergy)
-            }
-            if(req.body.oconfig.dontmpcode != undefined) {
-                config.oconfig.dontmpcode = req.body.oconfig.dontmpcode
-                if(log) console.log("config.oconfig.dontmpcode set to: " + config.oconfig.dontmpcode)
-            }
-            if(req.body.oconfig.alwaysmpcode != undefined) {
-                config.oconfig.alwaysmpcode = req.body.oconfig.alwaysmpcode
-                if(log) console.log("config.oconfig.alwaysmpcode set to: " + config.oconfig.alwaysmpcode)
-            }
-            if(req.body.oconfig.alwaysupdate != undefined) {
-                config.oconfig.alwaysupdate = req.body.oconfig.alwaysupdate
-                if(log) console.log("config.oconfig.alwaysupdate set to: " + config.oconfig.alwaysupdate)
-            }
-            UpdateOverlayConfig(req.body.updateQuestConfig);
-        }
-    }
-
     saveConfig()
 }).catch
 
@@ -791,15 +724,6 @@ api.post(`/api/removerequest`, async function(req, res) {
     console.log("removed none")
 })
 
-api.post(`/api/updateoverlays`, async function(req, res) {
-    console.log("Hello")
-    UpdateAllOverlays(true)
-    try {
-        res.send("")
-    } catch {}
-    
-})
-
 api.get(`/api/getconfig`, async function(req, res) {
     try {
         res.json(config)
@@ -809,34 +733,6 @@ api.get(`/api/getconfig`, async function(req, res) {
 function constuctParameters() {
     return "?ip=" + config.ip + "&updaterate=" + config.interval + "&decimals=" + config.oconfig.decimals + (config.oconfig.dontenergy ? "&dontshowenergy" : "") + (config.oconfig.dontmpcode ? "&dontshowmpcode" : "") + (config.oconfig.alwaysmpcode ? "&alwaysshowmpcode" : "") + (config.oconfig.customtext != "" ? "&customtext=" + config.oconfig.customtext : "") + (config.oconfig.alwaysupdate ? "&alwaysupdate" : "") + "&nosetip"
 }
-
-api.get(`/api/getOverlay`, async function(req, res) {
-    var Url = new URL("http://localhost:" + ApiPort + req.url)
-    var name = Url.searchParams.get("name")
-    var success = false;
-    config.overlays.forEach(overlay => {
-        if(overlay.Name == name && overlay.downloaded) {
-            overlay.downloads.forEach(download => {
-                if(download.IsEntryPoint) {
-                    var red = "http://localhost:" + ApiPort + "/overlays/" + overlay.Name + "/" + download.Path + constuctParameters()
-                    res.redirect(red)
-                    success = true
-                    return;
-                }
-            })
-        }
-        if(success) return
-    })
-    try {
-        if(!success) res.json({"msg": "error"})
-    } catch {}
-})
-
-api.get(`/api/requests`, async function(req, res) {
-    try {
-        res.json(srm)
-    } catch {}
-})
 
 api.get(`/windows/home`, async function(req, res) {
     mainWindow.loadURL(url.format({
@@ -849,15 +745,6 @@ api.get(`/windows/home`, async function(req, res) {
 api.get(`/windows/stream`, async function(req, res) {
     mainWindow.loadURL(url.format({
         pathname: path.join(__dirname, "html", "stream.html"),
-        protocol: 'file',
-        slashes: true
-    }))
-    res.end()
-})
-
-api.get(`/windows/overlays`, async function(req, res) {
-    mainWindow.loadURL(url.format({
-        pathname: path.join(__dirname, "html", "overlays.html"),
         protocol: 'file',
         slashes: true
     }))
@@ -882,12 +769,6 @@ api.get(`/windows/srm`, async function(req, res) {
     res.end()
 })
 
-api.get(`/api/overlays`, async function(req, res) {
-    try {
-        res.json(config.overlays)
-    } catch {}
-})
-
 api.get(`/api/raw`, async function(req, res) {
     var Url = new URL("http://localhost:" + ApiPort + req.url)
     var ip = Url.searchParams.get("ip")
@@ -908,8 +789,6 @@ api.get(`/api/rawcover`, async function(req, res) {
     } catch {}
     
 })
-
-api.use("/overlays", express.static(path.join(applicationDir, "overlays")))
 api.use("/covers", express.static(path.join(applicationDir, "covers")))
 
 api.listen(ApiPort)
