@@ -1,3 +1,4 @@
+require('dotenv').config()
 const url = require('url');
 const path = require('path');
 const fs = require('fs')
@@ -16,6 +17,9 @@ const SocketPort = 53501
 const HttpPort = 53502
 const ApiPort = 53510
 const version = "1.1.3"
+const redirectUri = `http://localhost:${ApiPort}/auth/discord/callback`;
+const clientId = process.env.CLIENT_ID;
+const clientSecret = process.env.CLIENT_SECRET;
 /*
 Ports:
     Multicast: 53500
@@ -416,6 +420,36 @@ api.get(`/api/getconfig`, async function(req, res) {
         res.json(config)
     } catch {}
 })
+
+app.get('/auth/discord', (req, res) => {
+    const redirectUri = encodeURIComponent('YOUR_REDIRECT_URI');
+    res.redirect(`https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=${redirectUri}&response_type=code&scope=identify`);
+  });
+  
+
+app.get('/auth/discord/callback', async (req, res) => {
+    const code = req.query.code;
+    try {
+      const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: redirectUri,
+      }), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+  
+      const accessToken = tokenResponse.data.access_token;
+      // Here you can use the access token to make authenticated requests to Discord's API
+      res.send("Authorization successful! You can now use the access token to make API requests.");
+    } catch (error) {
+      console.error('Error exchanging code for token:', error.response.data);
+      res.status(500).send("An error occurred during the authentication process.");
+    }
+  });  
 
 api.get(`/windows/home`, async function(req, res) {
     mainWindow.loadURL(url.format({

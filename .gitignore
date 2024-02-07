@@ -4,3 +4,6 @@
 *.tgz
 /covers
 config.json
+
+#for dev
+.env

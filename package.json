@@ -17,6 +17,7 @@
     "body-parser": "^1.19.0",
     "dgram": "^1.0.1",
     "discord-rich-presence": "0.0.8",
+    "dotenv": "^16.4.1",
     "express": "^4.17.1",
     "fs": "0.0.1-security",
     "net": "^1.0.2",
