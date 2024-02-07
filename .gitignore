@@ -3,3 +3,4 @@
 /build
 *.tgz
 /covers
+config.json
